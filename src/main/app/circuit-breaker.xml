@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting" xmlns:circuitbreaker="http://www.mulesoft.org/schema/mule/circuitbreaker" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/circuitbreaker http://www.mulesoft.org/schema/mule/circuitbreaker/current/mule-circuitbreaker.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
+    <http:listener-config name="HTTP_Listener_Configuration" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    
+ <!--  Circuit breacker  -->
+ 
+ 
+ <circuitbreaker:config breakerName="testingBreaker" tripThreshold="1" tripTimeout="300000" doc:name="Circuit Breaker: config" name="testingBreaker"/>
+    <flow name="demoFlow">
+        <http:listener config-ref="HTTP_Listener_Configuration" path="/" doc:name="HTTP"/>
+        <circuitbreaker:filter config-ref="testingBreaker" doc:name="Circuit Breaker"/>
+        <scripting:component doc:name="Groovy">
+            <scripting:script engine="Groovy"><![CDATA[throw new NullPointerException("exception throwed by mule");]]></scripting:script>
+        </scripting:component>
+        <logger message="#[payload]" level="INFO" doc:name="Logger"/>
+        <choice-exception-strategy doc:name="Choice Exception Strategy">
+            <catch-exception-strategy when="#[exception.causedBy(java.lang.NullPointerException)]" doc:name="Catch Exception Strategy">
+                <circuitbreaker:trip config-ref="testingBreaker" tripOnException="java.lang.Exception" doc:name="Circuit Breaker"/>
+                <set-payload value="Throwed Exception Circuit Breaker tripped" mimeType="application/json" doc:name="Set Payload"/>
+                <logger message="######## circuit breaker trip" level="INFO" doc:name="Logger"/>
+            </catch-exception-strategy>
+            <catch-exception-strategy when="#[exception.causedBy(com.mulesoft.mule.devkit.circuitbreaker.CircuitOpenException)]" doc:name="Catch Exception Strategy">
+                <set-payload value="Circuit Breaker stopped the message from Circuit breaker filter" doc:name="Set Payload"/>
+            </catch-exception-strategy>
+        </choice-exception-strategy>
+    </flow>
+
+
+</mule>
